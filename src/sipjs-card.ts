@@ -508,9 +508,6 @@ class SipJsCard extends LitElement {
     }
 
     setConfig(config: { server: any; port: any; extensions: any; }): void {
-        if (!config.server) {
-            throw new Error("You need to define a server!");
-        }
         if (!config.port) {
             throw new Error("You need to define a port!");
         }
@@ -690,6 +687,33 @@ class SipJsCard extends LitElement {
         this.sipPhoneSession = null;
     }
 
+    // borrowed from https://github.com/lovelylain/ha-addon-iframe-card/blob/main/src/hassio-ingress.ts
+    setIngressCookie(session: string): string {
+        document.cookie = `ingress_session=${session};path=/api/hassio_ingress/;SameSite=Strict${
+          location.protocol === "https:" ? ";Secure" : ""
+        }`;
+        return session;
+      };
+
+    async createHassioSession(): Promise<string> {
+        const resp: { session: string } = await this.hass.callWS({
+            type: "supervisor/api",
+            endpoint: "/ingress/session",
+            method: "post",
+        });
+        return this.setIngressCookie(resp.session);
+    };
+
+    async validateHassioSession(session: string) {
+        await this.hass.callWS({
+            type: "supervisor/api",
+            endpoint: "/ingress/validate_session",
+            method: "post",
+            data: { session },
+        });
+        this.setIngressCookie(session);
+    };
+
     async connect() {
         this.timerElement = "00:00";
         if (this.user == undefined) {
@@ -711,8 +735,32 @@ class SipJsCard extends LitElement {
 
         this.requestUpdate();
 
-        console.log("Connecting to wss://" + this.config.server + ":" + this.config.port + this.config.prefix + "/ws");
-        var socket = new WebSocketInterface("wss://" + this.config.server + ":" + this.config.port + this.config.prefix + "/ws");
+        let wss_url = `wss://${this.config.server}:${this.config.port}${this.config.prefix}/ws`
+
+        const resp = await this.hass.callWS({
+            type: 'supervisor/api',
+            method: 'get',
+            endpoint: '/addons',
+            })
+        const asterix_addon = resp.addons.filter((x: any) => x.slug.endsWith("_asterisk"))[0];
+        if(asterix_addon) {
+            const info = await this.hass.callWS({
+                type: 'supervisor/api',
+                method: 'get',
+                endpoint: `/addons/${asterix_addon.slug}/info`,
+                });
+            console.log("asterix addon info:", info);
+            if(info?.ingress_entry) {
+                console.log("asterix addon ingress_entry:", info.ingress_entry);
+                wss_url = `wss://${window.location.host}${info.ingress_entry}/ws`
+            }
+            await this.createHassioSession();
+        } else {
+            console.warn("asterix addon not found");
+        }
+
+        console.log("Connecting to", wss_url);
+        var socket = new WebSocketInterface(wss_url);
         var configuration = {
             sockets : [ socket ],
             uri     : "sip:" + this.user.extension + "@" + this.config.server,
