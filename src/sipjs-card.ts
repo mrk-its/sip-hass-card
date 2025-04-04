@@ -496,6 +496,7 @@ class SipJsCard extends LitElement {
                         }
 
                     </div>
+                    <iframe src="/hassio/ingress/7d773e42_asterisk" style="display:none"></iframe>
                 </ha-card>
             `}
         `
