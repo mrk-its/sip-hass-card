@@ -32,6 +32,8 @@ class SipJsCard extends LitElement {
     user_extension: string = "None";
     card_title: string = "Unknown";
     connected: boolean = false;
+    heartbeatHandle: number = 0;
+    heartbeatDelayMs: number = 0;
 
     constructor() {
         super();
@@ -752,7 +754,8 @@ class SipJsCard extends LitElement {
             console.log("asterix addon info:", info);
             if(info?.ingress_entry) {
                 console.log("asterix addon ingress_entry:", info.ingress_entry);
-                wss_url = `wss://${window.location.host}${info.ingress_entry}/ws`
+                wss_url = `wss://${window.location.host}${info.ingress_entry}/ws`;
+                this.heartbeatDelayMs = 30000;
             }
             await this.createHassioSession();
         } else {
@@ -801,17 +804,31 @@ class SipJsCard extends LitElement {
             console.log('SIP-Card Registered with SIP Server');
             this.connected = true;
             super.requestUpdate();
+            if(this.heartbeatDelayMs) {
+                if(this.heartbeatHandle) {
+                    window.clearInterval(this.heartbeatHandle); this.heartbeatHandle = 0;
+                }
+                this.heartbeatHandle = window.setInterval(() => {
+                    socket.send("\n\n");
+                }, this.heartbeatDelayMs);
+            }
             // this.renderRoot.querySelector('.extension').style.color = 'gray';
         });
         this.sipPhone?.on("unregistered", () => {
             console.log('SIP-Card Unregistered with SIP Server');
             this.connected = false;
+            if(this.heartbeatHandle) {
+                window.clearInterval(this.heartbeatHandle); this.heartbeatHandle = 0;
+            }
             super.requestUpdate();
             // this.renderRoot.querySelector('.extension').style.color = 'var(--mdc-theme-primary, #03a9f4)';
         });
         this.sipPhone?.on("registrationFailed", () => {
             console.log('SIP-Card Failed Registeration with SIP Server');
             this.connected = false;
+            if(this.heartbeatHandle) {
+                window.clearInterval(this.heartbeatHandle); this.heartbeatHandle = 0;
+            }
             super.requestUpdate();
             // this.renderRoot.querySelector('.extension').style.color = 'var(--mdc-theme-error, #db4437)';
         });
