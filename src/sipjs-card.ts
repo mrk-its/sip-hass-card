@@ -745,7 +745,7 @@ class SipJsCard extends LitElement {
         const ingressEntry = this.hass.states['text.asterisk_addon_ingress_entry']?.state;
         if(ingressEntry) {
             const wssProtocol = window.location.protocol == "https:" ? "wss:" : "ws:";
-            wssUrl = `${wssProtocol}//${ingressEntry}/ws`;
+            wssUrl = `${wssProtocol}//${window.location.host}${ingressEntry}/ws`;
             this.heartbeatDelayMs = 30000;
             await this.createHassioSession();
         }
