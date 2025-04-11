@@ -510,6 +510,9 @@ class SipJsCard extends LitElement {
     }
 
     setConfig(config: { server: any; port: any; extensions: any; }): void {
+        if (!config.server) {
+            throw new Error("You need to define a server!");
+        }
         if (!config.port) {
             throw new Error("You need to define a port!");
         }
@@ -737,33 +740,19 @@ class SipJsCard extends LitElement {
 
         this.requestUpdate();
 
-        let wss_url = `wss://${this.config.server}:${this.config.port}${this.config.prefix}/ws`
+        let wssUrl = "wss://" + this.config.server + ":" + this.config.port + (this.config.prefix || "") + "/ws";
 
-        const resp = await this.hass.callWS({
-            type: 'supervisor/api',
-            method: 'get',
-            endpoint: '/addons',
-            })
-        const asterix_addon = resp.addons.filter((x: any) => x.slug.endsWith("_asterisk"))[0];
-        if(asterix_addon) {
-            const info = await this.hass.callWS({
-                type: 'supervisor/api',
-                method: 'get',
-                endpoint: `/addons/${asterix_addon.slug}/info`,
-                });
-            console.log("asterix addon info:", info);
-            if(info?.ingress_entry) {
-                console.log("asterix addon ingress_entry:", info.ingress_entry);
-                wss_url = `wss://${window.location.host}${info.ingress_entry}/ws`;
-                this.heartbeatDelayMs = 30000;
-            }
+        const ingressEntry = this.hass.states['text.asterisk_addon_ingress_entry']?.state;
+        if(ingressEntry) {
+            const wssProtocol = window.location.protocol == "https:" ? "wss:" : "ws:";
+            wssUrl = `${wssProtocol}//${ingressEntry}/ws`;
+            this.heartbeatDelayMs = 30000;
             await this.createHassioSession();
-        } else {
-            console.warn("asterix addon not found");
         }
 
-        console.log("Connecting to", wss_url);
-        var socket = new WebSocketInterface(wss_url);
+        console.log(`Connecting to ${wssUrl}`);
+        var socket = new WebSocketInterface(wssUrl);
+
         var configuration = {
             sockets : [ socket ],
             uri     : "sip:" + this.user.extension + "@" + this.config.server,
