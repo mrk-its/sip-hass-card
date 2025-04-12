@@ -530,8 +530,9 @@ class SipJsCard extends LitElement {
         return {
             server: "192.168.0.10",
             port: "8089",
+            prefix: "",
             button_size: "48",
-            state_color: false,
+            state_color: true,
             auto_answer: false,
             hide_me: true,
             custom_title: '',
